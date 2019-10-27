@@ -1,10 +1,9 @@
 #!/bin/bash
+cd $( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 VENV=".venv"
 BORG_NAME="MYBORG"
 PLAINTEXT_PASSPHRASE="12345678"
 ENCRYPTED_PASSPHRASE="yEGDBcJ2lKcFdhhay2kJDg=="
-
-cd $( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 set -e
 
 sudo yum -y install \
@@ -26,6 +25,7 @@ pip install -r ../requirements.d/development.txt >/dev/null
 pip install -e ../ >/dev/null
 
 
+
 pyinstaller \
     --onedir \
     -y \
@@ -42,13 +42,19 @@ $BP --version
 echo 1234 > testfile.txt
 rm -rf test.borg
 BORG_PASSPHRASE="$PLAINTEXT_PASSPHRASE" $BP init -e repokey test.borg
-ls -al test1.borg
+ls -al test.borg
+
+
+echo Borging with plaintext passphrase
 
 BORG_PASSPHRASE="$PLAINTEXT_PASSPHRASE" $BP create test.borg::test1 testfile.txt
 BORG_PASSPHRASE="$PLAINTEXT_PASSPHRASE" $BP list test.borg::test1
+echo; echo OK; echo
 
+echo Borging with encrypted passphrase
 BORG_PASSPHRASE_ENCRYPTED="$ENCRYPTED_PASSPHRASE" $BP create test.borg::test2 testfile.txt
 BORG_PASSPHRASE_ENCRYPTED="$ENCRYPTED_PASSPHRASE" $BP list test.borg::test2
+echo; echo OK; echo
 
 rm -rf test.borg
 
