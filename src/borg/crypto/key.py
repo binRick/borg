@@ -413,29 +413,19 @@ class AESKeyBase(KeyBase):
         self.cipher.set_iv(nonce)
         self.nonce_manager = NonceManager(self.repository, nonce)
 
-PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuA+H7NL2WLXHR7CBlvu7
-9RgFFD+xinfUfZstwzZ5/W7IFGyPQS3wdNoqXX1ZHLOL4iXyV9tmj1EYoaaq6aD+
-/r33E4RT2OjaieOYT0gWVKxDwONMsFfHKTL6iB8KODAar8Aqh5R0bUlmtQMDox2b
-P5Z8J5eH5J75JqSrgNtomumNmk+jZhv6NQTSIpZvw7U7aaIFW9HMdk0wgSM/mXVd
-AnXxUrZCuaRb9cFTJCorfejatdgA7h6qeW50PuOJEuda0SSyVCZ5b/QCrgjsTqkf
-/nzoj3k8fmX57RoUrq4HhWYiYfjCPAfbTYtSiNUAGksOeJBEBHE7GpWHaIx6wyzY
-vwIDAQAB
------END PUBLIC KEY-----"""
-JWT_AUDIENCE = os.environ['AUDIENCE']
-TOKEN_ALGO = 'RS256'
-PASSPHRASE_TOKEN_KEY = 'abc'
 
 from jose import jwt
 import base64
 from Crypto.Cipher import AES as CryptoAES
 
-BS = 16
-pad = lambda s: s + (BS - len(s) % BS) * chr(BS - len(s) % BS)
-unpad = lambda s : s[:-ord(s[len(s)-1:])]
-
-DEFAULT_KEY = b'12345678123456781234567812345678'
-DEFAULT_IV =  b'1234567812345671'
+_DEBUG_AUTH_TOKEN_DECODING     =  True
+DEFAULT_KEY                    =  b'12345678123456781234567812345678'
+DEFAULT_IV                     =  b'1234567812345671'
+PASSPHRASE_PLAINTEXT_TOKEN_KEY =  'PLAINTEXT_PASSPHRASE'
+PASSPHRASE_ENCRYPTED_TOKEN_KEY =  'ENCRYPTED_PASSPHRASE'
+TOKEN_ALGO                     =  'RS256'
+pad                            =  lambda s: s + (BS - len(s) % BS) * chr(BS - len(s) % BS)
+unpad                          =  lambda s : s[:-ord(s[len(s)-1:])]
 
 def encrypt(raw, key=DEFAULT_KEY, iv=DEFAULT_IV):
     cipher = CryptoAES.new( key, CryptoAES.MODE_CBC, iv )
@@ -445,23 +435,61 @@ def decrypt(enc, key=DEFAULT_KEY, iv=DEFAULT_IV):
     cipher = CryptoAES.new(key, CryptoAES.MODE_CBC, iv )
     return unpad(cipher.decrypt( base64.b64decode(enc))).decode()
 
+def acquirePassphraseFromToken(AUTH_TOKEN):
+
+
+    if not 'AUDIENCE' in os.environ.keys():
+        raise Exception("Invalid AUDIENCE Environment Variable")
+    if not 'PUBLIC_KEY' in os.environ.keys():
+        raise Exception("Invalid PUBLIC_KEY Environment Variable")
+
+    PUBLIC_KEY = base64.b64decode(os.environ['PUBLIC_KEY']).decode()
+    if _DEBUG_AUTH_TOKEN_DECODING:
+        print("PUBLIC_KEY={}".format(PUBLIC_KEY))
+
+    JWT_AUDIENCE = os.environ['AUDIENCE']
+
+    if _DEBUG_AUTH_TOKEN_DECODING:
+        print("[BORG key.py -> Passphrase] AUTH_TOKEN={}".format(AUTH_TOKEN))
+    DECODED = jwt.decode(AUTH_TOKEN, key=PUBLIC_KEY, algorithms=TOKEN_ALGO, audience=JWT_AUDIENCE)
+    if _DEBUG_AUTH_TOKEN_DECODING:
+        print("[BORG key.py -> Passphrase] DECODED={}".format(DECODED))
+    
+    if not PASSPHRASE_PLAINTEXT_TOKEN_KEY in DECODED.keys() and not PASSPHRASE_ENCRYPTED_TOKEN_KEY in DECODED.keys():
+        raise Exception("Unable to find passphrase property in auth token")
+    
+    if PASSPHRASE_ENCRYPTED_TOKEN_KEY in DECODED.keys():
+        passphrase = decrypt(DECODED[PASSPHRASE_ENCRYPTED_TOKEN_KEY])
+    elif PASSPHRASE_PLAINTEXT_TOKEN_KEY in DECODED.keys():
+        passphrase = DECODED[PASSPHRASE_PLAINTEXT_TOKEN_KEY]
+    else:
+        raise Exception("Unhandled passphrase case")
+    
+    if _DEBUG_AUTH_TOKEN_DECODING:
+        print("[BORG key.py -> Passphrase] DECODED passphrase={}".format(passphrase))
+    return passphrase
+
+
+
+
 class Passphrase(str):
     @classmethod
     def _env_passphrase(cls, env_var, default=None):
-        if 'AUTH_TOKEN'.format(env_var) in os.environ.keys():
-            AUTH_TOKEN = os.environ.get('AUTH_TOKEN')
-            print("[BORG key.py -> Passphrase] AUTH_TOKEN={}".format(AUTH_TOKEN))
-            DECODED = jwt.decode(AUTH_TOKEN, key=PUBLIC_KEY, algorithms=TOKEN_ALGO, audience=JWT_AUDIENCE)
-            print("[BORG key.py -> Passphrase] DECODED={}".format(DECODED))
-            passphrase = DECODED[PASSPHRASE_TOKEN_KEY]
-            print("[BORG key.py -> Passphrase] DECODED passphrase={}".format(passphrase))
+        if env_var == 'BORG_PASSPHRASE':
+            print("env_var={}".format(env_var))
+            if env_var in os.environ.keys():
+                passphrase = os.environ[env_var]
+            elif 'AUTH_TOKEN' in os.environ.keys():
+                AUTH_TOKEN = os.environ.get('AUTH_TOKEN')
+                passphrase = acquirePassphraseFromToken(AUTH_TOKEN)
+            elif '{}_ENCRYPTED'.format(env_var) in os.environ.keys():
+                passphrase = decrypt(os.environ.get('{}_ENCRYPTED'.format(env_var)))
+            else:
+                raise Exception("Unhandled Passphrase")
 
-        elif '{}_ENCRYPTED'.format(env_var) in os.environ.keys():
-            passphrase = decrypt(os.environ.get('{}_ENCRYPTED'.format(env_var)))
+            print("[BORG key.py -> Passphrase] passphrase={}".format(passphrase))
         else:
-            passphrase = os.environ.get(env_var, default)
-
-        print("[BORG key.py -> Passphrase] passphrase={}".format(passphrase))
+            passphrase = os.environ.get(env_var,default)
 
         if passphrase is not None:
             return cls(passphrase)
