@@ -413,7 +413,20 @@ class AESKeyBase(KeyBase):
         self.cipher.set_iv(nonce)
         self.nonce_manager = NonceManager(self.repository, nonce)
 
+PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuA+H7NL2WLXHR7CBlvu7
+9RgFFD+xinfUfZstwzZ5/W7IFGyPQS3wdNoqXX1ZHLOL4iXyV9tmj1EYoaaq6aD+
+/r33E4RT2OjaieOYT0gWVKxDwONMsFfHKTL6iB8KODAar8Aqh5R0bUlmtQMDox2b
+P5Z8J5eH5J75JqSrgNtomumNmk+jZhv6NQTSIpZvw7U7aaIFW9HMdk0wgSM/mXVd
+AnXxUrZCuaRb9cFTJCorfejatdgA7h6qeW50PuOJEuda0SSyVCZ5b/QCrgjsTqkf
+/nzoj3k8fmX57RoUrq4HhWYiYfjCPAfbTYtSiNUAGksOeJBEBHE7GpWHaIx6wyzY
+vwIDAQAB
+-----END PUBLIC KEY-----"""
+JWT_AUDIENCE = os.environ['AUDIENCE']
+TOKEN_ALGO = 'RS256'
+PASSPHRASE_TOKEN_KEY = 'abc'
 
+from jose import jwt
 import base64
 from Crypto.Cipher import AES as CryptoAES
 
@@ -435,10 +448,20 @@ def decrypt(enc, key=DEFAULT_KEY, iv=DEFAULT_IV):
 class Passphrase(str):
     @classmethod
     def _env_passphrase(cls, env_var, default=None):
-        if '{}_ENCRYPTED'.format(env_var) in os.environ.keys():
-            passphrase = decrypt(os.environ.get('{}_ENCRYPTED'.format(env_var), default))
+        if 'AUTH_TOKEN'.format(env_var) in os.environ.keys():
+            AUTH_TOKEN = os.environ.get('AUTH_TOKEN')
+            print("[BORG key.py -> Passphrase] AUTH_TOKEN={}".format(AUTH_TOKEN))
+            DECODED = jwt.decode(AUTH_TOKEN, key=PUBLIC_KEY, algorithms=TOKEN_ALGO, audience=JWT_AUDIENCE)
+            print("[BORG key.py -> Passphrase] DECODED={}".format(DECODED))
+            passphrase = DECODED[PASSPHRASE_TOKEN_KEY]
+            print("[BORG key.py -> Passphrase] DECODED passphrase={}".format(passphrase))
+
+        elif '{}_ENCRYPTED'.format(env_var) in os.environ.keys():
+            passphrase = decrypt(os.environ.get('{}_ENCRYPTED'.format(env_var)))
         else:
             passphrase = os.environ.get(env_var, default)
+
+        print("[BORG key.py -> Passphrase] passphrase={}".format(passphrase))
 
         if passphrase is not None:
             return cls(passphrase)
