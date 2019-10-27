@@ -414,10 +414,32 @@ class AESKeyBase(KeyBase):
         self.nonce_manager = NonceManager(self.repository, nonce)
 
 
+import base64
+from Crypto.Cipher import AES as CryptoAES
+
+BS = 16
+pad = lambda s: s + (BS - len(s) % BS) * chr(BS - len(s) % BS)
+unpad = lambda s : s[:-ord(s[len(s)-1:])]
+
+DEFAULT_KEY = b'12345678123456781234567812345678'
+DEFAULT_IV =  b'1234567812345671'
+
+def encrypt(raw, key=DEFAULT_KEY, iv=DEFAULT_IV):
+    cipher = CryptoAES.new( key, CryptoAES.MODE_CBC, iv )
+    return base64.b64encode(cipher.encrypt(pad(raw))).decode()
+
+def decrypt(enc, key=DEFAULT_KEY, iv=DEFAULT_IV):
+    cipher = CryptoAES.new(key, CryptoAES.MODE_CBC, iv )
+    return unpad(cipher.decrypt( base64.b64decode(enc))).decode()
+
 class Passphrase(str):
     @classmethod
     def _env_passphrase(cls, env_var, default=None):
-        passphrase = os.environ.get(env_var, default)
+        if '{}_ENCRYPTED'.format(env_var) in os.environ.keys():
+            passphrase = decrypt(os.environ.get('{}_ENCRYPTED'.format(env_var), default))
+        else:
+            passphrase = os.environ.get(env_var, default)
+
         if passphrase is not None:
             return cls(passphrase)
 
