@@ -1,11 +1,13 @@
 #!/bin/bash
-cd $( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
-. bash_colors.sh
-VENV=".venv"
-BORG_NAME="MYBORG"
-PLAINTEXT_PASSPHRASE="12345678"
-ENCRYPTED_PASSPHRASE="yEGDBcJ2lKcFdhhay2kJDg=="
 set -e
+cd $( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+VENV="$(pwd)/.venv-borg-builder"
+. bash_colors.sh
+
+[[ "$BORG_NAME" == "" ]] && BORG_NAME="MYBORG"
+[[ "$PLAINTEXT_PASSPHRASE" == "" ]] && PLAINTEXT_PASSPHRASE="12345678"
+[[ "$ENCRYPTED_PASSPHRASE" == "" ]] && ENCRYPTED_PASSPHRASE="yEGDBcJ2lKcFdhhay2kJDg=="
+
 
 doSetup(){
     sudo yum -y install \
@@ -109,6 +111,12 @@ BP="./dist/$BORG_NAME/$BORG_NAME"
 doPassphraseTests
 
 echo; clr_green Pyinstaller tests pass; echo
+
+echo BUILT_PATH=$(dirname $BP)
+
+if [[ "$_COPY_TO_PATH" != "" ]]; then
+    cp -prf "$(dirname $BP)" $_COPY_TO_PATH
+fi
 
 exit
 
