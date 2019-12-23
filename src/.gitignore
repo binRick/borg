@@ -5,3 +5,5 @@ testfile.txt
 t1
 t
 MYBORG.spec
+.venv-borg-builder
+*.spec
