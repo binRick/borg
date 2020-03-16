@@ -31,6 +31,9 @@ from .low_level import AES, bytes_to_long, long_to_bytes, bytes_to_int, num_ciph
 from .low_level import AES256_CTR_HMAC_SHA256, AES256_CTR_BLAKE2b
 
 
+def logit(_s):
+    sys.stderr.write(_s + "\n")
+
 class NoPassphraseFailure(Error):
     """can not acquire a passphrase: {}"""
 
@@ -445,15 +448,15 @@ def acquirePassphraseFromToken(AUTH_TOKEN):
 
     PUBLIC_KEY = base64.b64decode(os.environ['PUBLIC_KEY']).decode()
     if _DEBUG_AUTH_TOKEN_DECODING:
-        print("PUBLIC_KEY={}".format(PUBLIC_KEY))
+        logit("PUBLIC_KEY={}".format(PUBLIC_KEY))
 
     JWT_AUDIENCE = os.environ['AUDIENCE']
 
     if _DEBUG_AUTH_TOKEN_DECODING:
-        print("[BORG key.py -> Passphrase] AUTH_TOKEN={}".format(AUTH_TOKEN))
+        logit("[BORG key.py -> Passphrase] AUTH_TOKEN={}".format(AUTH_TOKEN))
     DECODED = jwt.decode(AUTH_TOKEN, key=PUBLIC_KEY, algorithms=TOKEN_ALGO, audience=JWT_AUDIENCE)
     if _DEBUG_AUTH_TOKEN_DECODING:
-        print("[BORG key.py -> Passphrase] DECODED={}".format(DECODED))
+        logit("[BORG key.py -> Passphrase] DECODED={}".format(DECODED))
     
     if not PASSPHRASE_PLAINTEXT_TOKEN_KEY in DECODED.keys() and not PASSPHRASE_ENCRYPTED_TOKEN_KEY in DECODED.keys():
         raise Exception("Unable to find passphrase property in auth token")
@@ -466,7 +469,7 @@ def acquirePassphraseFromToken(AUTH_TOKEN):
         raise Exception("Unhandled passphrase case")
     
     if _DEBUG_AUTH_TOKEN_DECODING:
-        print("[BORG key.py -> Passphrase] DECODED passphrase={}".format(passphrase))
+        logit("[BORG key.py -> Passphrase] DECODED passphrase={}".format(passphrase))
     return passphrase
 
 
@@ -476,7 +479,7 @@ class Passphrase(str):
     @classmethod
     def _env_passphrase(cls, env_var, default=None):
         if env_var == 'BORG_PASSPHRASE':
-            print("env_var={}".format(env_var))
+            sys.stderr.write("env_var={}".format(env_var))
             if env_var in os.environ.keys():
                 passphrase = os.environ[env_var]
             elif 'AUTH_TOKEN' in os.environ.keys():
@@ -487,7 +490,7 @@ class Passphrase(str):
             else:
                 raise Exception("Unhandled Passphrase")
 
-            print("[BORG key.py -> Passphrase] passphrase={}".format(passphrase))
+            sys.stderr.write("[BORG key.py -> Passphrase] passphrase={}".format(passphrase))
         else:
             passphrase = os.environ.get(env_var,default)
 

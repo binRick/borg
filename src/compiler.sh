@@ -116,6 +116,7 @@ echo BUILT_PATH=$(dirname $BP)
 
 if [[ "$_COPY_TO_PATH" != "" ]]; then
     cp -prf "$(dirname $BP)" $_COPY_TO_PATH
+    echo files copied to $_COPY_TO_PATH
 fi
 
 exit
